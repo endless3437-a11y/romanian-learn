@@ -35,11 +35,15 @@
   <script src="js/data.js"></script>
   <script>
     var AUDIO_DATA = {};
-    // Load offline audio pack asynchronously so page is usable immediately
+    var _AUDIO_READY = false;
     (function() {
       var s = document.createElement('script');
       s.src = 'js/audio-data.js';
-      s.onerror = function() { console.log('Audio data not available, using browser TTS'); };
+      s.onload = function() {
+        _AUDIO_READY = true;
+        if (typeof toast === 'function') toast('语音包已就绪，可离线使用');
+      };
+      s.onerror = function() { console.log('Audio pack not available, using browser TTS'); };
       document.head.appendChild(s);
     })();
   </script>
