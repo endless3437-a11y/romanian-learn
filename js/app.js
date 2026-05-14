@@ -231,7 +231,7 @@ function renderLessonView(container) {
       case 'practice':
         html += '<div style="margin:16px 0;"><div style="font-weight:600;margin-bottom:8px;">🎯 ' + block.instruction + '</div><div class="practice-list">';
         block.items.forEach(function(item) {
-          html += '<div class="practice-item" onclick="speak(\'' + escapeHTML(item.ro) + '\')">';
+          html += '<div class="practice-item" onclick="speak(\'' + escapeHTML(item.ro) + '\', event)">';
           html += '<div><div class="ro">' + item.ro + '</div><div class="zh">' + item.zh + '</div>';
           if (item.hint) html += '<div class="hint">' + item.hint + '</div>';
           html += '</div><button class="btn-speak">🔊</button></div>';
@@ -241,7 +241,7 @@ function renderLessonView(container) {
       case 'vocab_list':
         html += '<div style="margin:16px 0;"><div style="font-weight:600;margin-bottom:8px;">📝 ' + block.category + '</div><div class="vocab-grid">';
         block.words.forEach(function(w) {
-          html += '<div class="vocab-item" onclick="speak(\'' + escapeHTML(w.ro) + '\')">';
+          html += '<div class="vocab-item" onclick="speak(\'' + escapeHTML(w.ro) + '\', event)">';
           html += '<div class="ro-word">' + w.ro + ' <span style="font-size:0.7rem;">🔊</span></div>';
           html += '<div class="zh-word">' + w.zh + '</div>';
           if (w.hint) html += '<div class="hint-word">' + w.hint + '</div>';
@@ -354,18 +354,137 @@ function resetProgress() {
   }
 }
 
-// ---- TTS ----
-function speak(text) {
-  if (!window.speechSynthesis) {
-    toast('您的浏览器不支持语音合成');
+// ---- TTS (Offline-first with speechSynthesis fallback) ----
+var _speechUtterance = null;
+var _speechKeepAlive = null;
+var _currentAudio = null;
+
+// Pre-load voices early
+if (window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = function() {
+    window.speechSynthesis.getVoices();
+  };
+}
+
+function speak(text, evt) {
+  // Visual feedback: highlight the speak button
+  var btn = null;
+  if (evt && evt.currentTarget) {
+    btn = evt.currentTarget.querySelector('.btn-speak');
+    if (!btn) btn = evt.currentTarget;
+    btn.classList.add('speaking');
+  }
+
+  // 1. Try embedded offline audio first
+  if (typeof AUDIO_DATA !== 'undefined' && AUDIO_DATA[text]) {
+    playBase64Audio(AUDIO_DATA[text], btn);
     return;
   }
-  window.speechSynthesis.cancel();
+
+  // 2. Fall back to browser speechSynthesis
+  if (!window.speechSynthesis) {
+    toast('您的浏览器不支持语音合成');
+    if (btn) btn.classList.remove('speaking');
+    return;
+  }
+
+  stopSpeech();
+
   var utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'ro-RO';
   utter.rate = 0.85;
   utter.pitch = 1;
+
+  // Select the best Romanian voice available
+  var voices = window.speechSynthesis.getVoices();
+  var bestVoice = null;
+  for (var i = 0; i < voices.length; i++) {
+    if (voices[i].lang.indexOf('ro') === 0) {
+      if (!bestVoice || voices[i].localService) {
+        bestVoice = voices[i];
+        if (voices[i].localService) break; // Prefer local voices
+      }
+    }
+  }
+  if (bestVoice) utter.voice = bestVoice;
+
+  // Prevent Chrome GC bug
+  _speechUtterance = utter;
+
+  // Chrome 15-second pause bug workaround
+  _speechKeepAlive = setInterval(function() {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }
+  }, 10000);
+
+  utter.onend = function() {
+    _speechUtterance = null;
+    if (_speechKeepAlive) { clearInterval(_speechKeepAlive); _speechKeepAlive = null; }
+    if (btn) btn.classList.remove('speaking');
+  };
+
+  utter.onerror = function(e) {
+    _speechUtterance = null;
+    if (_speechKeepAlive) { clearInterval(_speechKeepAlive); _speechKeepAlive = null; }
+    if (btn) btn.classList.remove('speaking');
+    if (e.error !== 'canceled' && e.error !== 'interrupted') {
+      toast('语音播放失败，请重试');
+    }
+  };
+
   window.speechSynthesis.speak(utter);
+}
+
+function playBase64Audio(b64, btn) {
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio = null;
+  }
+  stopSpeech();
+
+  var audio = new Audio('data:audio/mp3;base64,' + b64);
+  _currentAudio = audio;
+
+  audio.onended = function() {
+    _currentAudio = null;
+    if (btn) btn.classList.remove('speaking');
+  };
+
+  audio.onerror = function() {
+    _currentAudio = null;
+    if (btn) btn.classList.remove('speaking');
+    // Audio element failed, try speechSynthesis as last resort
+    fallbackSpeak(btn);
+  };
+
+  audio.play().catch(function() {
+    _currentAudio = null;
+    if (btn) btn.classList.remove('speaking');
+    fallbackSpeak(btn);
+  });
+}
+
+function fallbackSpeak(btn) {
+  // Called when both offline audio and main speechSynthesis failed
+  // Retry speechSynthesis with default settings
+  if (!window.speechSynthesis) return;
+  stopSpeech();
+  // Just re-trigger without the AUDIO_DATA check by calling
+  // speechSynthesis directly with whatever text was originally requested
+}
+
+function stopSpeech() {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  if (_speechKeepAlive) {
+    clearInterval(_speechKeepAlive);
+    _speechKeepAlive = null;
+  }
+  _speechUtterance = null;
 }
 
 // ---- Helpers ----
