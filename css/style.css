@@ -640,17 +640,19 @@ main { flex: 1; padding: 16px; }
   border-radius: var(--radius);
   padding: 10px 14px;
   margin: 16px 0;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+}
+.reading-audio-bar .ab-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+  gap: 8px;
   flex-wrap: wrap;
 }
 .reading-audio-bar .ab-btn {
-  width: 40px; height: 40px;
+  width: 38px; height: 38px;
   border-radius: 50%;
   border: none;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s;
@@ -659,42 +661,92 @@ main { flex: 1; padding: 16px; }
 .reading-audio-bar .ab-btn:active { transform: scale(0.92); }
 .reading-audio-bar .ab-play {
   background: var(--primary); color: #fff;
-  font-size: 1rem;
 }
 .reading-audio-bar .ab-pause {
   background: var(--warning); color: #fff;
 }
 .reading-audio-bar .ab-stop {
   background: #f1f5f9; color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+.reading-audio-bar .ab-retry {
+  background: #fef2f2; color: var(--danger);
+  font-size: 0.85rem;
 }
 .reading-audio-bar .ab-speed {
-  padding: 6px 12px;
+  padding: 4px 10px;
   border: 1px solid var(--border);
-  border-radius: 16px;
-  font-size: 0.8rem;
+  border-radius: 14px;
+  font-size: 0.75rem;
   background: #fff;
   cursor: pointer;
   font-weight: 600;
   color: var(--primary);
+  flex-shrink: 0;
 }
 .reading-audio-bar .ab-speed.active-speed {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
 }
-.reading-audio-bar .ab-progress {
-  flex: 1;
-  min-width: 80px;
-  font-size: 0.75rem;
+.reading-audio-bar .ab-progress-text {
+  font-size: 0.7rem;
   color: var(--text-secondary);
   text-align: center;
+  margin-top: 6px;
 }
 .reading-audio-bar .ab-label {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text);
 }
+
+/* ---- Clickable Progress Bar ---- */
+.reading-progress-wrap {
+  margin: 8px 0 4px;
+  height: 28px;
+  position: relative;
+  cursor: pointer;
+  background: #f1f5f9;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.reading-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #16a34a, #2563eb);
+  border-radius: 14px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+.reading-progress-fill::after {
+  content: '';
+  position: absolute;
+  right: 2px; top: 2px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.reading-progress-dots {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.reading-progress-text {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text);
+  pointer-events: none;
+  text-shadow: 0 0 4px rgba(255,255,255,0.8);
+}
+
 .reading-sentence-highlight {
   background: #fef3c7;
   border-radius: 3px;
