@@ -629,3 +629,75 @@ main { flex: 1; padding: 16px; }
   padding: 12px 16px;
   margin: 8px 0 16px;
 }
+
+/* ---- Audio Reading Control Bar ---- */
+.reading-audio-bar {
+  position: sticky;
+  bottom: 60px;
+  z-index: 150;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin: 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+  flex-wrap: wrap;
+}
+.reading-audio-bar .ab-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.reading-audio-bar .ab-btn:active { transform: scale(0.92); }
+.reading-audio-bar .ab-play {
+  background: var(--primary); color: #fff;
+  font-size: 1rem;
+}
+.reading-audio-bar .ab-pause {
+  background: var(--warning); color: #fff;
+}
+.reading-audio-bar .ab-stop {
+  background: #f1f5f9; color: var(--text);
+  font-size: 0.9rem;
+}
+.reading-audio-bar .ab-speed {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  font-size: 0.8rem;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary);
+}
+.reading-audio-bar .ab-speed.active-speed {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.reading-audio-bar .ab-progress {
+  flex: 1;
+  min-width: 80px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.reading-audio-bar .ab-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.reading-sentence-highlight {
+  background: #fef3c7;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background 0.3s;
+}

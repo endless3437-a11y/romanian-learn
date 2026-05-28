@@ -14,6 +14,16 @@ var state = {
   unlockMode: true,          // true=自由浏览 false=逐课解锁
 };
 
+// ---- Reading TTS State ----
+var readingAudio = {
+  playing: false,
+  paused: false,
+  speed: 1.0,
+  sentences: [],
+  currentIndex: 0,
+  utterance: null,
+};
+
 // ---- Polyfill ----
 if (!window.Set) {
   window.Set = function(arr) {
@@ -173,14 +183,10 @@ function renderDashboard(container) {
   curriculum.phases.forEach(function(phase, i) {
     var phaseDone = 0;
     phase.lessons.forEach(function(l) { if (isCompleted(l.id)) phaseDone++; });
-    var prevDone = true;
-    if (i > 0) {
-      prevDone = curriculum.phases[i-1].lessons.every(function(l) { return isCompleted(l.id); });
-    }
-    var isLocked = i > 0 && !prevDone && phaseDone === 0;
-    html += '<div class="card phase-card ' + (isLocked ? 'phase-locked' : '') + '" onclick="navigate(\'phase\',' + i + ')">';
+    // 所有阶段始终开放，仅在课程内使用逐课解锁模式
+    html += '<div class="card phase-card" onclick="navigate(\'phase\',' + i + ')">';
     html += '<div class="phase-icon">' + phase.icon + '</div>';
-    html += '<div class="phase-info"><div class="phase-name">' + (isLocked ? '🔒 ' : '') + phase.title + '</div>';
+    html += '<div class="phase-info"><div class="phase-name">' + phase.title + '</div>';
     html += '<div class="phase-sub">' + phase.subtitle + '</div></div>';
     html += '<div class="phase-progress">' + phaseDone + '/' + phase.lessons.length + '</div></div>';
   });
@@ -488,6 +494,20 @@ function renderReadingDetail(container, reading, isChapter) {
   });
   html += '</div>';
 
+  // 语音朗读控制条
+  html += '<div class="reading-audio-bar" id="reading-audio-bar">';
+  html += '<span class="ab-label">🔊</span>';
+  html += '<button class="ab-btn ab-play" id="ab-play-btn" onclick="readingPlay()" title="朗读">▶</button>';
+  html += '<button class="ab-btn ab-pause" id="ab-pause-btn" onclick="readingPause()" title="暂停" style="display:none;">⏸</button>';
+  html += '<button class="ab-btn ab-stop" onclick="readingStop()" title="停止">⏹</button>';
+  html += '<span class="ab-progress" id="ab-progress">点击 ▶ 开始朗读</span>';
+  html += '<span style="font-size:0.75rem;color:var(--text-secondary);">语速：</span>';
+  html += '<button class="ab-speed" data-speed="0.5" onclick="readingSetSpeed(0.5,this)">0.5x</button>';
+  html += '<button class="ab-speed active-speed" data-speed="1.0" onclick="readingSetSpeed(1.0,this)">1x</button>';
+  html += '<button class="ab-speed" data-speed="1.25" onclick="readingSetSpeed(1.25,this)">1.25x</button>';
+  html += '<button class="ab-speed" data-speed="1.5" onclick="readingSetSpeed(1.5,this)">1.5x</button>';
+  html += '</div>';
+
   // 显示中文翻译切换
   if (reading.translation) {
     html += '<div class="translation-toggle" onclick="toggleTranslation()">📋 显示/隐藏中文翻译</div>';
@@ -578,6 +598,153 @@ function closeWordPopupOnClick(e) {
 function toggleTranslation() {
   var el = document.getElementById('full-translation');
   if (el) { el.classList.toggle('show'); }
+}
+
+// ---- Reading TTS (Text-to-Speech) ----
+function readingCollectSentences() {
+  // 从阅读正文收集所有句子
+  var container = document.getElementById('reading-text-content');
+  if (!container) return [];
+  var sentences = [];
+  var paras = container.querySelectorAll('p');
+  for (var i = 0; i < paras.length; i++) {
+    // 按句子标点拆分（。.!?;）但保留标点
+    var text = paras[i].textContent || '';
+    var parts = text.match(/[^.!?;]+[.!?;]*/g) || [text];
+    for (var j = 0; j < parts.length; j++) {
+      var s = parts[j].trim();
+      if (s.length > 0) sentences.push(s);
+    }
+  }
+  return sentences;
+}
+
+function readingPlay() {
+  // 如果暂停了，恢复播放
+  if (readingAudio.paused) {
+    readingAudio.paused = false;
+    readingAudio.playing = true;
+    readingUpdateUI();
+    readingSpeakCurrent();
+    return;
+  }
+
+  // 新播放：收集句子
+  readingStop();
+  readingAudio.sentences = readingCollectSentences();
+  if (readingAudio.sentences.length === 0) {
+    document.getElementById('ab-progress').textContent = '未找到朗读内容';
+    return;
+  }
+  readingAudio.currentIndex = 0;
+  readingAudio.playing = true;
+  readingAudio.paused = false;
+  readingUpdateUI();
+  readingSpeakCurrent();
+}
+
+function readingPause() {
+  readingAudio.paused = true;
+  readingAudio.playing = false;
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  readingUpdateUI();
+  document.getElementById('ab-progress').textContent =
+    '已暂停 (' + (readingAudio.currentIndex + 1) + '/' + readingAudio.sentences.length + ')';
+}
+
+function readingStop() {
+  readingAudio.playing = false;
+  readingAudio.paused = false;
+  readingAudio.currentIndex = 0;
+  readingAudio.sentences = [];
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  // 清除高亮
+  var highlights = document.querySelectorAll('.reading-sentence-highlight');
+  for (var h = 0; h < highlights.length; h++) {
+    highlights[h].classList.remove('reading-sentence-highlight');
+  }
+  readingUpdateUI();
+  var prog = document.getElementById('ab-progress');
+  if (prog) prog.textContent = '点击 ▶ 开始朗读';
+}
+
+function readingSpeakCurrent() {
+  if (!readingAudio.playing || readingAudio.paused) return;
+  if (readingAudio.currentIndex >= readingAudio.sentences.length) {
+    // 朗读完毕
+    readingAudio.playing = false;
+    readingUpdateUI();
+    document.getElementById('ab-progress').textContent = '朗读完毕 ✓';
+    return;
+  }
+
+  var sentence = readingAudio.sentences[readingAudio.currentIndex];
+  var utter = new SpeechSynthesisUtterance(sentence);
+  utter.lang = 'ro-RO';
+  utter.rate = readingAudio.speed;
+
+  // 尝试选择罗马尼亚语语音
+  var voices = window.speechSynthesis.getVoices();
+  for (var v = 0; v < voices.length; v++) {
+    if (voices[v].lang.indexOf('ro') === 0) {
+      utter.voice = voices[v];
+      if (voices[v].localService) break;
+    }
+  }
+
+  readingAudio.utterance = utter;
+
+  // 更新进度
+  document.getElementById('ab-progress').textContent =
+    '朗读中 (' + (readingAudio.currentIndex + 1) + '/' + readingAudio.sentences.length + ')';
+
+  // 当前句子结束 → 读下一句
+  utter.onend = function() {
+    readingAudio.currentIndex++;
+    readingSpeakCurrent();
+  };
+
+  utter.onerror = function(e) {
+    if (e.error !== 'canceled' && e.error !== 'interrupted') {
+      readingAudio.currentIndex++;
+    }
+    readingSpeakCurrent();
+  };
+
+  window.speechSynthesis.speak(utter);
+}
+
+function readingSetSpeed(speed, btn) {
+  readingAudio.speed = speed;
+  // 更新按钮样式
+  var buttons = document.querySelectorAll('.ab-speed');
+  for (var b = 0; b < buttons.length; b++) {
+    buttons[b].classList.remove('active-speed');
+  }
+  if (btn) btn.classList.add('active-speed');
+  // 如果正在播放，重新开始当前句子（应用新速度）
+  if (readingAudio.playing && !readingAudio.paused) {
+    window.speechSynthesis.cancel();
+    readingSpeakCurrent();
+  }
+}
+
+function readingUpdateUI() {
+  var playBtn = document.getElementById('ab-play-btn');
+  var pauseBtn = document.getElementById('ab-pause-btn');
+  if (playBtn && pauseBtn) {
+    if (readingAudio.playing && !readingAudio.paused) {
+      playBtn.style.display = 'none';
+      pauseBtn.style.display = 'flex';
+    } else {
+      playBtn.style.display = 'flex';
+      pauseBtn.style.display = 'none';
+    }
+  }
 }
 
 // ---- Settings ----
