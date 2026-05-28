@@ -374,3 +374,258 @@ main { flex: 1; padding: 16px; }
 .tag-grammar { background: #ede9fe; color: #5b21b6; }
 .tag-reading { background: #fce7f3; color: #9d174d; }
 .tag-review { background: #fee2e2; color: #991b1b; }
+
+/* ---- Chapter Reading ---- */
+.chapter-reading {
+  background: linear-gradient(135deg, #f0fdf4, #eff6ff);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin: 16px 0;
+}
+.chapter-reading h3 {
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+.chapter-reading .reading-body {
+  font-size: 1.05rem;
+  line-height: 2.2;
+  margin: 16px 0;
+  padding: 16px;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--success);
+}
+.chapter-reading .reading-body p {
+  margin-bottom: 12px;
+  text-indent: 1em;
+}
+
+/* ---- Reading Library ---- */
+.reading-level-header {
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 16px;
+  margin: 16px 0 8px;
+  border-radius: var(--radius-sm);
+  color: #fff;
+}
+.reading-level-header.lvl-k { background: #f59e0b; }
+.reading-level-header.lvl-elem { background: #16a34a; }
+.reading-level-header.lvl-middle { background: #2563eb; }
+.reading-level-header.lvl-high { background: #7c3aed; }
+
+.reading-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.reading-card:active { transform: scale(0.98); background: var(--primary-light); }
+.reading-card .reading-title { font-weight: 600; font-size: 0.95rem; }
+.reading-card .reading-subtitle { font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px; }
+.reading-card .reading-meta {
+  display: flex; gap: 8px; margin-top: 6px;
+}
+.reading-card .reading-meta .rl-tag {
+  font-size: 0.65rem; padding: 2px 8px; border-radius: 10px;
+  font-weight: 600;
+}
+
+/* ---- Word Click Popup ---- */
+.word-clickable {
+  cursor: pointer;
+  border-bottom: 2px dotted var(--primary);
+  transition: all 0.15s;
+  position: relative;
+}
+.word-clickable:hover {
+  background: var(--primary-light);
+  border-bottom-color: var(--primary);
+  border-radius: 2px;
+}
+.word-clickable.active {
+  background: #fef3c7;
+  border-bottom-color: var(--warning);
+  border-radius: 2px;
+}
+
+.word-popup {
+  position: fixed;
+  z-index: 400;
+  background: #fff;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  min-width: 160px;
+  max-width: 280px;
+  animation: popIn 0.2s ease;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.word-popup .wp-word {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+.word-popup .wp-zh {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.word-popup .wp-pron {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.word-popup .wp-speak {
+  margin-top: 8px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.word-popup .wp-close {
+  position: absolute;
+  top: 4px; right: 8px;
+  background: none; border: none;
+  font-size: 1rem; cursor: pointer;
+  color: var(--text-secondary);
+}
+
+/* ---- Reading View ---- */
+.reading-full {
+  padding: 4px;
+}
+.reading-full .reading-text {
+  font-size: 1.05rem;
+  line-height: 2.3;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: var(--radius-sm);
+  margin: 16px 0;
+}
+.reading-full .vocab-section {
+  background: #f0fdf4;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.reading-full .vocab-section h4 { font-size: 0.85rem; margin-bottom: 8px; color: var(--success); }
+.reading-full .vocab-grid-sm {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.reading-full .vocab-chip {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.reading-full .vocab-chip .vc-ro { font-weight: 600; color: var(--primary); }
+.reading-full .vocab-chip .vc-zh { color: var(--text-secondary); margin-left: 4px; }
+
+.reading-full .translation-toggle {
+  color: var(--primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: center;
+  padding: 8px;
+  margin: 8px 0;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.reading-full .full-translation {
+  background: #fffbeb;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: var(--text);
+  display: none;
+  margin: 8px 0;
+}
+.reading-full .full-translation.show { display: block; }
+
+/* ---- Toggle Switch ---- */
+.setting-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.setting-toggle .toggle-label { font-weight: 600; font-size: 0.9rem; }
+.setting-toggle .toggle-desc { font-size: 0.75rem; color: var(--text-secondary); }
+
+.toggle-switch {
+  position: relative;
+  width: 48px; height: 26px;
+  flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #cbd5e1;
+  border-radius: 26px;
+  transition: 0.3s;
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px; width: 20px;
+  left: 3px; bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--success); }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+/* ---- Tag colors for reading levels ---- */
+.tag-level-k { background: #fef3c7; color: #92400e; }
+.tag-level-elem { background: #d1fae5; color: #065f46; }
+.tag-level-middle { background: #dbeafe; color: #1e40af; }
+.tag-level-high { background: #ede9fe; color: #5b21b6; }
+
+/* ---- Letter card in alphabet lessons ---- */
+.letter-card {
+  display: inline-block;
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin: 4px;
+  min-width: 90px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.letter-card:hover { border-color: var(--primary); background: var(--primary-light); }
+.letter-card .lc-letter { font-size: 1.6rem; font-weight: 800; color: var(--primary); }
+.letter-card .lc-sound { font-size: 0.75rem; color: var(--text-secondary); }
+.letter-card .lc-like { font-size: 0.7rem; color: #94a3b8; margin-top: 2px; }
+
+.letter-detail {
+  background: #f8fafc;
+  border-left: 4px solid var(--primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 12px 16px;
+  margin: 8px 0 16px;
+}

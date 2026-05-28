@@ -10,6 +10,8 @@ var state = {
   pace: 'normal',
   streak: 0,
   lastStudyDate: null,
+  readingId: null,           // 当前阅读文章ID
+  unlockMode: true,          // true=自由浏览 false=逐课解锁
 };
 
 // ---- Polyfill ----
@@ -58,6 +60,7 @@ function loadState() {
       state.pace = saved.pace || 'normal';
       state.streak = saved.streak || 0;
       state.lastStudyDate = saved.lastStudyDate || null;
+      state.unlockMode = saved.unlockMode !== undefined ? saved.unlockMode : true;
     }
   } catch(e) { state.completedLessons = []; }
 }
@@ -68,6 +71,7 @@ function saveState() {
       pace: state.pace,
       streak: state.streak,
       lastStudyDate: state.lastStudyDate,
+      unlockMode: state.unlockMode,
     }));
   } catch(e) {}
 }
@@ -89,6 +93,7 @@ function navigate(view, data) {
   state.currentView = view;
   if (view === 'phase') state.currentPhaseIndex = parseInt(data) || 0;
   if (view === 'lesson') state.currentLessonId = data;
+  if (view === 'reading') state.readingId = data || null;
   window.location.hash = view + (data !== undefined ? ':' + data : '');
   render();
 }
@@ -96,10 +101,11 @@ function handleHashChange() {
   var hash = (window.location.hash || '#dashboard').slice(1) || 'dashboard';
   var parts = hash.split(':');
   var view = parts[0];
-  var param = parts[1];
+  var param = parts.length > 1 ? parts.slice(1).join(':') : undefined;
   state.currentView = view;
   if (view === 'phase') state.currentPhaseIndex = parseInt(param) || 0;
   if (view === 'lesson') state.currentLessonId = param;
+  if (view === 'reading') state.readingId = param || null;
   render();
 }
 
@@ -115,6 +121,7 @@ function render() {
       case 'phase': renderPhaseView(app); break;
       case 'lesson': renderLessonView(app); break;
       case 'settings': renderSettings(app); break;
+      case 'reading': renderReadingView(app); break;
       default: renderDashboard(app); break;
     }
   } catch(e) {
@@ -131,13 +138,27 @@ function renderHeader(title, showBack, backFn) {
   if (nav) nav.style.display = showBack ? 'none' : 'flex';
 }
 
+// ---- Get merged curriculum (expanded phase 1 if available) ----
+function getCurriculum() {
+  if (window.CURRICULUM_PHASE1 && window.CURRICULUM_PHASE1.phases) {
+    var expanded = window.CURRICULUM_PHASE1.phases[0];
+    var merged = { phases: [expanded] };
+    for (var i = 1; i < CURRICULUM.phases.length; i++) {
+      merged.phases.push(CURRICULUM.phases[i]);
+    }
+    return merged;
+  }
+  return CURRICULUM;
+}
+
 // ---- Dashboard ----
 function renderDashboard(container) {
   renderHeader('🇷🇴 罗马尼亚语学习', false);
 
+  var curriculum = getCurriculum();
   var total = 0;
   var done = state.completedLessons.length;
-  CURRICULUM.phases.forEach(function(p) { total += p.lessons.length; });
+  curriculum.phases.forEach(function(p) { total += p.lessons.length; });
   var pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   var html = '';
@@ -149,12 +170,12 @@ function renderDashboard(container) {
 
   html += '<div style="margin-bottom:12px;"><h2 style="font-size:1rem;margin-bottom:4px;">学习阶段</h2><p style="font-size:0.8rem;color:var(--text-secondary);">按顺序学习效果最佳</p></div>';
 
-  CURRICULUM.phases.forEach(function(phase, i) {
+  curriculum.phases.forEach(function(phase, i) {
     var phaseDone = 0;
     phase.lessons.forEach(function(l) { if (isCompleted(l.id)) phaseDone++; });
     var prevDone = true;
     if (i > 0) {
-      prevDone = CURRICULUM.phases[i-1].lessons.every(function(l) { return isCompleted(l.id); });
+      prevDone = curriculum.phases[i-1].lessons.every(function(l) { return isCompleted(l.id); });
     }
     var isLocked = i > 0 && !prevDone && phaseDone === 0;
     html += '<div class="card phase-card ' + (isLocked ? 'phase-locked' : '') + '" onclick="navigate(\'phase\',' + i + ')">';
@@ -178,7 +199,8 @@ function renderDashboard(container) {
 
 // ---- Phase View ----
 function renderPhaseView(container) {
-  var phase = CURRICULUM.phases[state.currentPhaseIndex];
+  var curriculum = getCurriculum();
+  var phase = curriculum.phases[state.currentPhaseIndex];
   renderHeader(phase.title, true);
 
   var phaseDone = 0;
@@ -197,12 +219,25 @@ function renderPhaseView(container) {
   phase.lessons.forEach(function(lesson, i) {
     var done = isCompleted(lesson.id);
     var isCurrent = !done && (i === 0 || isCompleted(phase.lessons[i-1].id));
-    html += '<div class="card lesson-item" onclick="navigate(\'lesson\',\'' + lesson.id + '\')" style="' + (done ? 'opacity:0.7' : '') + '">';
-    html += '<div class="lesson-dot ' + (done ? 'done' : (isCurrent ? 'current' : 'pending')) + '">' + (done ? '✓' : (i+1)) + '</div>';
-    html += '<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:0.9rem;">' + lesson.title + '</div>';
+    // 解锁模式：未解锁的课程变灰不可点击
+    var locked = !state.unlockMode && !done && !isCurrent;
+    html += '<div class="card lesson-item' + (locked ? ' phase-locked' : '') + '" ' +
+      (locked ? '' : 'onclick="navigate(\'lesson\',\'' + lesson.id + '\')"') +
+      ' style="' + (done ? 'opacity:0.7' : '') + '">';
+    html += '<div class="lesson-dot ' + (done ? 'done' : (isCurrent ? 'current' : 'pending')) + '">' + (locked ? '🔒' : (done ? '✓' : (i+1))) + '</div>';
+    html += '<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:0.9rem;">' + (locked ? '🔒 ' : '') + lesson.title + '</div>';
     html += '<div style="font-size:0.75rem;color:var(--text-secondary);">' + lesson.content.length + ' 个板块</div></div>';
     html += '<span class="tag ' + (typeClasses[lesson.type] || 'tag-vocab') + '">' + (typeTags[lesson.type] || lesson.type) + '</span></div>';
   });
+
+  // 添加阶段阅读巩固短文
+  var cr = findChapterReading(state.currentPhaseIndex);
+  if (cr) {
+    html += '<div class="card chapter-reading" onclick="navigate(\'reading\',\'' + cr.id + '\')" style="cursor:pointer;">';
+    html += '<h3>📖 阶段阅读巩固：' + cr.titleZh + '</h3>';
+    html += '<div style="font-size:0.8rem;color:var(--text-secondary);">' + cr.intro + '</div>';
+    html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--primary);">👉 点击阅读，巩固本章所学词汇</div></div>';
+  }
 
   container.innerHTML = html;
 }
@@ -213,7 +248,13 @@ function renderLessonView(container) {
   if (!lesson) { navigate('dashboard'); return; }
 
   var phase = findPhaseForLesson(state.currentLessonId);
-  var phaseIdx = phase ? CURRICULUM.phases.indexOf(phase) : 0;
+  var curriculum = getCurriculum();
+  var phaseIdx = 0;
+  if (phase) {
+    for (var pi = 0; pi < curriculum.phases.length; pi++) {
+      if (curriculum.phases[pi].id === phase.id) { phaseIdx = pi; break; }
+    }
+  }
   renderHeader(lesson.title, true, function() { navigate('phase', phaseIdx); });
 
   var isDone = isCompleted(lesson.id);
@@ -315,14 +356,256 @@ function markIncomplete(lessonId) {
   navigate('lesson', lessonId);
 }
 
+// ---- Chapter Reading Helper ----
+function findChapterReading(phaseIndex) {
+  if (!window.CHAPTER_READINGS) return null;
+  for (var i = 0; i < window.CHAPTER_READINGS.length; i++) {
+    if (window.CHAPTER_READINGS[i].phase === phaseIndex + 1) return window.CHAPTER_READINGS[i];
+  }
+  return null;
+}
+
+// ---- Reading View (Library + Detail) ----
+function renderReadingView(container) {
+  // 如果有 readingId，显示阅读详情
+  if (state.readingId) {
+    // 先查章节阅读
+    if (window.CHAPTER_READINGS) {
+      for (var i = 0; i < window.CHAPTER_READINGS.length; i++) {
+        if (window.CHAPTER_READINGS[i].id === state.readingId) {
+          renderReadingDetail(container, window.CHAPTER_READINGS[i], true);
+          return;
+        }
+      }
+    }
+    // 再查阅读库
+    if (window.READING_LIBRARY) {
+      for (var j = 0; j < window.READING_LIBRARY.length; j++) {
+        if (window.READING_LIBRARY[j].id === state.readingId) {
+          renderReadingDetail(container, window.READING_LIBRARY[j], false);
+          return;
+        }
+      }
+    }
+  }
+  // 默认：显示阅读库列表
+  renderReadingLibrary(container);
+}
+
+function renderReadingLibrary(container) {
+  renderHeader('📖 阅读文库', false);
+
+  var html = '';
+  html += '<div style="margin-bottom:12px;"><h2 style="font-size:1rem;margin-bottom:4px;">分级阅读</h2>';
+  html += '<p style="font-size:0.8rem;color:var(--text-secondary);">从幼儿园到高中，点击单词查释义听发音</p></div>';
+
+  // 先显示章节阅读
+  if (window.CHAPTER_READINGS && window.CHAPTER_READINGS.length > 0) {
+    html += '<div class="reading-level-header lvl-elem">📗 课程配套阅读（巩固所学词汇）</div>';
+    window.CHAPTER_READINGS.forEach(function(cr) {
+      html += '<div class="reading-card" onclick="navigate(\'reading\',\'' + cr.id + '\')">';
+      html += '<div class="reading-title">' + cr.title + '</div>';
+      html += '<div class="reading-subtitle">' + cr.titleZh + ' — ' + cr.intro + '</div>';
+      html += '<div class="reading-meta"><span class="rl-tag tag-level-elem">阶段' + cr.phase + '</span></div></div>';
+    });
+  }
+
+  // 分级阅读库
+  if (window.READING_LIBRARY && window.READING_LIBRARY.length > 0) {
+    var levels = [
+      { key: 1, name: '🏫 幼儿园', cls: 'lvl-k', tag: 'tag-level-k' },
+      { key: 2, name: '📘 小学', cls: 'lvl-elem', tag: 'tag-level-elem' },
+      { key: 3, name: '📙 初中', cls: 'lvl-middle', tag: 'tag-level-middle' },
+      { key: 4, name: '📕 高中', cls: 'lvl-high', tag: 'tag-level-high' },
+    ];
+
+    levels.forEach(function(lvl) {
+      var readings = window.READING_LIBRARY.filter(function(r) { return r.level === lvl.key; });
+      if (readings.length === 0) return;
+      html += '<div class="reading-level-header ' + lvl.cls + '">' + lvl.name + '</div>';
+      readings.forEach(function(rl) {
+        html += '<div class="reading-card" onclick="navigate(\'reading\',\'' + rl.id + '\')">';
+        html += '<div class="reading-title">' + rl.title + '</div>';
+        html += '<div class="reading-subtitle">' + rl.titleZh + '</div>';
+        html += '<div class="reading-meta"><span class="rl-tag ' + lvl.tag + '">' + rl.levelName + '</span>';
+        html += '<span class="rl-tag" style="background:#f1f5f9;color:#64748b;">约' + rl.text.join(' ').split(/\s+/).length + '词</span></div></div>';
+      });
+    });
+  }
+
+  var navBtns = document.querySelectorAll('.bottom-nav button');
+  for (var ni = 0; ni < navBtns.length; ni++) { navBtns[ni].classList.remove('active'); }
+  var readingBtn = document.querySelectorAll('.bottom-nav button')[1];
+  if (readingBtn) readingBtn.classList.add('active');
+
+  container.innerHTML = html;
+}
+
+// ---- Reading Detail (with word-click) ----
+function renderReadingDetail(container, reading, isChapter) {
+  renderHeader(reading.title, true, function() { navigate('reading'); });
+
+  var html = '<div class="reading-full">';
+  html += '<h2>' + reading.title + '</h2>';
+  html += '<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:4px;">' + reading.titleZh + '</div>';
+
+  // 词汇表
+  if (reading.vocab && reading.vocab.length > 0) {
+    html += '<div class="vocab-section"><h4>📝 关键词汇</h4><div class="vocab-grid-sm">';
+    reading.vocab.forEach(function(v) {
+      html += '<span class="vocab-chip" onclick="speak(\'' + escapeHTML(v.ro) + '\', event)">';
+      html += '<span class="vc-ro">' + v.ro + '</span>';
+      html += '<span class="vc-zh">' + v.zh + '</span></span>';
+    });
+    html += '</div></div>';
+  }
+
+  // 阅读正文（带word-click）
+  html += '<div class="reading-text" id="reading-text-content">';
+  reading.text.forEach(function(paragraph) {
+    html += '<p>';
+    // 分割单词，每个单词变成可点击元素
+    var words = paragraph.split(/(\s+)/);
+    words.forEach(function(w) {
+      if (w.trim() === '') { html += w; return; }
+      // 去掉标点获取纯单词
+      var cleanWord = w.replace(/^[,.!?;:„"«»()\[\]…—–-]+|[,.!?;:„"«»()\[\]…—–-]+$/g, '');
+      // 大小写不敏感查找
+      var wordInfo = null;
+      if (reading.wordMap) {
+        wordInfo = reading.wordMap[cleanWord] || reading.wordMap[cleanWord.toLowerCase()];
+      }
+      if (wordInfo) {
+        html += '<span class="word-clickable" data-word="' + escapeHTML(cleanWord) + '" ';
+        html += 'data-zh="' + escapeHTML(wordInfo.zh) + '" ';
+        html += 'data-pron="' + escapeHTML(wordInfo.pronunciation || '') + '" ';
+        html += 'onclick="onWordClick(event, this)">' + w + '</span>';
+      } else {
+        html += w;
+      }
+    });
+    html += '</p>';
+  });
+  html += '</div>';
+
+  // 显示中文翻译切换
+  if (reading.translation) {
+    html += '<div class="translation-toggle" onclick="toggleTranslation()">📋 显示/隐藏中文翻译</div>';
+    html += '<div class="full-translation" id="full-translation">' + reading.translation + '</div>';
+  }
+
+  // 测验
+  if (reading.quiz && reading.quiz.length > 0) {
+    html += '<div style="margin-top:20px;"><h3>📋 阅读理解</h3>';
+    reading.quiz.forEach(function(q, qi) {
+      var qid = 'rq_' + qi;
+      html += '<div class="quiz-card" id="' + qid + '">';
+      html += '<div class="quiz-question">' + (qi+1) + '. ' + q.question + '</div>';
+      q.options.forEach(function(opt, oi) {
+        html += '<button class="quiz-option" onclick="answerQuiz(\'' + qid + '\',' + oi + ',' + q.answer + ',this)">' + opt + '</button>';
+      });
+      html += '<div class="quiz-feedback" style="display:none;margin-top:8px;font-weight:600;"></div></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<div style="height:40px;"></div></div>';
+  container.innerHTML = html;
+}
+
+// ---- Word Click Handler ----
+function onWordClick(evt, el) {
+  evt.stopPropagation();
+  // 关闭已打开的弹窗
+  var existing = document.getElementById('word-popup');
+  if (existing) { existing.remove(); }
+
+  // 清除其他活动状态
+  var actives = document.querySelectorAll('.word-clickable.active');
+  for (var a = 0; a < actives.length; a++) { actives[a].classList.remove('active'); }
+  el.classList.add('active');
+
+  var word = el.getAttribute('data-word');
+  var zh = el.getAttribute('data-zh');
+  var pron = el.getAttribute('data-pron');
+
+  // 创建弹窗
+  var popup = document.createElement('div');
+  popup.id = 'word-popup';
+  popup.className = 'word-popup';
+  popup.innerHTML = '<button class="wp-close" onclick="closeWordPopup()">✕</button>' +
+    '<div class="wp-word">' + word + '</div>' +
+    '<div class="wp-zh">' + zh + '</div>' +
+    '<div class="wp-pron">读音：' + pron + '</div>' +
+    '<button class="wp-speak" onclick="speak(\'' + escapeHTML(word) + '\', event); event.stopPropagation();">🔊 听发音</button>';
+
+  document.body.appendChild(popup);
+
+  // 定位弹窗
+  var rect = el.getBoundingClientRect();
+  var top = rect.bottom + 6;
+  var left = rect.left;
+  // 避免超出屏幕
+  if (left + 260 > window.innerWidth) left = window.innerWidth - 270;
+  if (left < 10) left = 10;
+  if (top + 120 > window.innerHeight) top = rect.top - 130;
+  popup.style.position = 'fixed';
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+
+  // 点击其他区域关闭
+  setTimeout(function() {
+    document.addEventListener('click', closeWordPopupOnClick);
+  }, 50);
+}
+
+function closeWordPopup() {
+  var popup = document.getElementById('word-popup');
+  if (popup) popup.remove();
+  var actives = document.querySelectorAll('.word-clickable.active');
+  for (var a = 0; a < actives.length; a++) { actives[a].classList.remove('active'); }
+  document.removeEventListener('click', closeWordPopupOnClick);
+}
+
+function closeWordPopupOnClick(e) {
+  var popup = document.getElementById('word-popup');
+  if (popup && !popup.contains(e.target) && !e.target.classList.contains('word-clickable')) {
+    closeWordPopup();
+  }
+}
+
+// ---- Translation Toggle ----
+function toggleTranslation() {
+  var el = document.getElementById('full-translation');
+  if (el) { el.classList.toggle('show'); }
+}
+
 // ---- Settings ----
+function setUnlockMode(enabled) {
+  state.unlockMode = enabled;
+  saveState();
+  toast(enabled ? '已切换到自由浏览模式' : '已切换到逐课解锁模式');
+  render();
+}
+
 function renderSettings(container) {
   renderHeader('⚙️ 学习设置', true);
 
+  var curriculum = getCurriculum();
   var total = 0;
-  CURRICULUM.phases.forEach(function(p) { total += p.lessons.length; });
+  curriculum.phases.forEach(function(p) { total += p.lessons.length; });
 
-  var html = '<div class="setting-group"><h3>学习速度</h3>';
+  var html = '';
+
+  // 进度解锁模式开关
+  html += '<div class="setting-group"><h3>学习模式</h3>';
+  html += '<div class="setting-toggle">';
+  html += '<div><div class="toggle-label">' + (state.unlockMode ? '🔓 自由浏览模式' : '🔒 逐课解锁模式') + '</div>';
+  html += '<div class="toggle-desc">' + (state.unlockMode ? '所有课程开放，可自由跳转' : '学完一课才能解锁下一课') + '</div></div>';
+  html += '<label class="toggle-switch"><input type="checkbox" ' + (state.unlockMode ? 'checked' : '') + ' onchange="setUnlockMode(this.checked)">';
+  html += '<span class="toggle-slider"></span></label></div></div>';
+
+  html += '<div class="setting-group"><h3>学习速度</h3>';
   Object.keys(PACE_PRESETS).forEach(function(key) {
     var p = PACE_PRESETS[key];
     html += '<button class="pace-option ' + (state.pace === key ? 'selected' : '') + '" onclick="setPace(\'' + key + '\')">';
@@ -505,8 +788,9 @@ function stopSpeech() {
 
 // ---- Helpers ----
 function findLesson(id) {
-  for (var i = 0; i < CURRICULUM.phases.length; i++) {
-    var phase = CURRICULUM.phases[i];
+  var curriculum = getCurriculum();
+  for (var i = 0; i < curriculum.phases.length; i++) {
+    var phase = curriculum.phases[i];
     for (var j = 0; j < phase.lessons.length; j++) {
       if (phase.lessons[j].id === id) return phase.lessons[j];
     }
@@ -514,8 +798,9 @@ function findLesson(id) {
   return null;
 }
 function findPhaseForLesson(id) {
-  for (var i = 0; i < CURRICULUM.phases.length; i++) {
-    var phase = CURRICULUM.phases[i];
+  var curriculum = getCurriculum();
+  for (var i = 0; i < curriculum.phases.length; i++) {
+    var phase = curriculum.phases[i];
     for (var j = 0; j < phase.lessons.length; j++) {
       if (phase.lessons[j].id === id) return phase;
     }
